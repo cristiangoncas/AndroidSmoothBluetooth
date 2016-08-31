@@ -57,7 +57,7 @@ public class SmoothBluetooth {
         void onDiscoveryFinished();
         void onNoDevicesFound();
         void onDevicesFound(List<Device> deviceList, ConnectionCallback connectionCallback);
-        void onDataReceived(int data);
+        void onDataReceived(String data);
     }
 
     private static final String TAG = "BluetoothManager";
