@@ -369,11 +369,10 @@ public class SmoothBluetooth {
                 case BluetoothService.MESSAGE_WRITE:
                     break;
                 case BluetoothService.MESSAGE_READ:
-                    int readBuf = (int) msg.obj;
-                    //String readMessage = new String(readBuf);
-                    //if(readBuf != null) {
+                    byte[] readBuf = (byte[])msg.obj;
+                    String stringBuffer = new String(readBuf);
                     if(mListener != null)
-                        mListener.onDataReceived(readBuf);
+                        mListener.onDataReceived(stringBuffer);
                     // }
                     break;
                 case BluetoothService.MESSAGE_DEVICE_NAME:
