@@ -48,15 +48,25 @@ public class SmoothBluetooth {
 
     public interface Listener {
         void onBluetoothNotSupported();
+
         void onBluetoothNotEnabled();
+
         void onConnecting(Device device);
+
         void onConnected(Device device);
+
         void onDisconnected();
+
         void onConnectionFailed(Device device);
+
         void onDiscoveryStarted();
+
         void onDiscoveryFinished();
+
         void onNoDevicesFound();
+
         void onDevicesFound(List<Device> deviceList, ConnectionCallback connectionCallback);
+
         void onDataReceived(String data);
     }
 
@@ -65,6 +75,8 @@ public class SmoothBluetooth {
     private BluetoothAdapter mBluetoothAdapter;
 
     private BluetoothService mBluetoothService;
+
+    private boolean isReceiverRegistered;
 
     private boolean isServiceRunning;
 
@@ -93,8 +105,9 @@ public class SmoothBluetooth {
     }
 
     public SmoothBluetooth(Context context, ConnectionTo connectionTo, Connection connection,
-            Listener listener) {
+                           Listener listener) {
         mContext = context;
+        isReceiverRegistered = false;
         mListener = listener;
         mIsAndroid = connectionTo == ConnectionTo.ANDROID_DEVICE;
         mIsSecure = connection == Connection.SECURE;
@@ -131,7 +144,7 @@ public class SmoothBluetooth {
             for (BluetoothDevice device : pairedDevices) {
                 String name = device.getName();
                 String address = device.getAddress();
-                if(name != null && address != null) {
+                if (name != null && address != null) {
                     mDevices.add(new Device(name, address, true));
                 }
             }
@@ -209,8 +222,11 @@ public class SmoothBluetooth {
         }
         Log.d(TAG, "doDiscovery()");
 
-        if (isDiscovery()) {
-            mContext.unregisterReceiver(mReceiver);
+        if (isConnected()) {
+            if (isReceiverRegistered) {
+                mContext.unregisterReceiver(mReceiver);
+                isReceiverRegistered = false;
+            }
             cancelDiscovery();
         }
         IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
@@ -218,6 +234,7 @@ public class SmoothBluetooth {
 
         filter = new IntentFilter(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
         mContext.registerReceiver(mReceiver, filter);
+        isReceiverRegistered = true;
 
         startDiscovery();
     }
@@ -233,12 +250,15 @@ public class SmoothBluetooth {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                 // If it's already paired, skip it, because it's been listed already
                 Log.d(TAG, "Device found: " + device.getName() + " " + device.getAddress());
-                if(!deviceExist(device)) {
+                if (!deviceExist(device)) {
                     mDevices.add(new Device(device.getName(), device.getAddress(), false));
                 }
             } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
                 Log.d(TAG, "Discovery finished: " + mDevices.size());
-                mContext.unregisterReceiver(mReceiver);
+                if (isReceiverRegistered) {
+                    mContext.unregisterReceiver(mReceiver);
+                    isReceiverRegistered = false;
+                }
                 if (mListener != null) {
                     mListener.onDiscoveryFinished();
                 }
@@ -264,7 +284,7 @@ public class SmoothBluetooth {
         }
     }
 
-    private boolean deviceExist(BluetoothDevice device){
+    private boolean deviceExist(BluetoothDevice device) {
         for (Device mDevice : mDevices) {
             if (mDevice.getAddress().contains(device.getAddress())) {
                 return true;
@@ -292,6 +312,10 @@ public class SmoothBluetooth {
 
     public void stop() {
         mCurrentDevice = null;
+        if (isReceiverRegistered) {
+            mContext.unregisterReceiver(mReceiver);
+            isReceiverRegistered = false;
+        }
         if (isServiceAvailable()) {
             isServiceRunning = false;
             mBluetoothService.stop();
@@ -314,7 +338,7 @@ public class SmoothBluetooth {
             setupService();
         }
         startService(android, secure);
-        if(BluetoothAdapter.checkBluetoothAddress(address)) {
+        if (BluetoothAdapter.checkBluetoothAddress(address)) {
             BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(address);
             mBluetoothService.connect(device);
         }
@@ -322,10 +346,10 @@ public class SmoothBluetooth {
 
     public void disconnect() {
         mCurrentDevice = null;
-        if(isServiceAvailable()) {
+        if (isServiceAvailable()) {
             isServiceRunning = false;
             mBluetoothService.stop();
-            if(mBluetoothService.getState() == BluetoothService.STATE_NONE) {
+            if (mBluetoothService.getState() == BluetoothService.STATE_NONE) {
                 isServiceRunning = true;
                 mBluetoothService.start(mIsAndroid, mIsSecure);
             }
@@ -341,8 +365,8 @@ public class SmoothBluetooth {
     }
 
     public void send(byte[] data, boolean CRLF) {
-        if(isServiceAvailable() && mBluetoothService.getState() == BluetoothService.STATE_CONNECTED) {
-            if(CRLF) {
+        if (isServiceAvailable() && mBluetoothService.getState() == BluetoothService.STATE_CONNECTED) {
+            if (CRLF) {
                 byte[] data2 = new byte[data.length + 2];
                 System.arraycopy(data, 0, data2, 0, data.length);
                 data2[data2.length] = 0x0A;
@@ -355,8 +379,8 @@ public class SmoothBluetooth {
     }
 
     public void send(String data, boolean CRLF) {
-        if(isServiceAvailable() && mBluetoothService.getState() == BluetoothService.STATE_CONNECTED) {
-            if(CRLF)
+        if (isServiceAvailable() && mBluetoothService.getState() == BluetoothService.STATE_CONNECTED) {
+            if (CRLF)
                 data += "\r\n";
             mBluetoothService.write(data.getBytes());
         }
@@ -369,14 +393,15 @@ public class SmoothBluetooth {
                 case BluetoothService.MESSAGE_WRITE:
                     break;
                 case BluetoothService.MESSAGE_READ:
-                    byte[] readBuf = (byte[])msg.obj;
+                    byte[] readBuf = (byte[]) msg.obj;
                     String stringBuffer = new String(readBuf);
-                    if(mListener != null)
+
+                    if (mListener != null) {
                         mListener.onDataReceived(stringBuffer);
-                    // }
+                    }
                     break;
                 case BluetoothService.MESSAGE_DEVICE_NAME:
-                    if(mListener != null) {
+                    if (mListener != null) {
                         mListener.onConnected(mCurrentDevice);
                     }
                     isConnected = true;
@@ -384,18 +409,18 @@ public class SmoothBluetooth {
                 case BluetoothService.MESSAGE_STATE_CHANGE:
                     /*if(mBluetoothStateListener != null)
                         mBluetoothStateListener.onServiceStateChanged(msg.arg1);*/
-                    if(isConnected && msg.arg1 != BluetoothService.STATE_CONNECTED) {
+                    if (isConnected && msg.arg1 != BluetoothService.STATE_CONNECTED) {
                         isConnected = false;
                         if (mListener != null) {
                             mListener.onDisconnected();
                             mCurrentDevice = null;
                         }
                     }
-                    if(!isConnecting && msg.arg1 == BluetoothService.STATE_CONNECTING) {
+                    if (!isConnecting && msg.arg1 == BluetoothService.STATE_CONNECTING) {
                         isConnecting = true;
-                    } else if(isConnecting) {
+                    } else if (isConnecting) {
                         isConnecting = false;
-                        if(msg.arg1 != BluetoothService.STATE_CONNECTED) {
+                        if (msg.arg1 != BluetoothService.STATE_CONNECTED) {
                             if (mListener != null) {
                                 mListener.onConnectionFailed(mCurrentDevice);
                                 mCurrentDevice = null;
@@ -406,5 +431,4 @@ public class SmoothBluetooth {
             }
         }
     };
-
 }
