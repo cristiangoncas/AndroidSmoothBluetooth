@@ -48,25 +48,15 @@ public class SmoothBluetooth {
 
     public interface Listener {
         void onBluetoothNotSupported();
-
         void onBluetoothNotEnabled();
-
         void onConnecting(Device device);
-
         void onConnected(Device device);
-
         void onDisconnected();
-
         void onConnectionFailed(Device device);
-
         void onDiscoveryStarted();
-
         void onDiscoveryFinished();
-
         void onNoDevicesFound();
-
         void onDevicesFound(List<Device> deviceList, ConnectionCallback connectionCallback);
-
         void onDataReceived(String data);
     }
 
@@ -431,4 +421,5 @@ public class SmoothBluetooth {
             }
         }
     };
+
 }
